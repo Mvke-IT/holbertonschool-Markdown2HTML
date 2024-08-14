@@ -1,92 +1,144 @@
 #!/usr/bin/python3
-""" Write a script markdown2html.py that takes an argument 2 strings:
-First argument is the name of the Markdown file
-Second argument is the output file name """
-
-import re
-import hashlib
+"""
+markdown2html module
+"""
 import sys
 import os
+import hashlib
+
+
+def main():
+    """
+    Converts a Markdown heading to an HTML heading
+    """
+
+    if len(sys.argv) != 3:
+        print("Usage: ./markdown2html.py README.md README.html",
+              file=sys.stderr)
+        sys.exit(1)
+
+    if not os.path.isfile(sys.argv[1]):
+        print(f'Missing {sys.argv[1]}', file=sys.stderr)
+        sys.exit(1)
+
+    with open(sys.argv[1], 'r') as f:
+        content = f.readlines()
+
+    line_html_1 = []
+    m = 0
+    for line in content:
+        if line[:2] == '* ':
+            if m == 0:
+                m = 1
+                line_html_1.append('<ol>')
+            line_html_1.append(f"<li>{line[2:].strip()}</li>")
+        else:
+            if m == 1:
+                m = 0
+                line_html_1.append("</ol>")
+            line_html_1.append(line)
+    if m == 1:
+        line_html_1.append("</ol>")
+
+    line_html = []
+    m = 0
+    for line in line_html_1:
+        if line[0] == '-':
+            if m == 0:
+                m = 1
+                line_html.append('<ul>')
+            line_html.append(f"<li>{line[2:].strip()}</li>")
+        else:
+            if m == 1:
+                m = 0
+                line_html.append("</ul>")
+            line_html.append(line)
+    if m == 1:
+        line_html.append("</ul>")
+
+    html_lines = []
+    for i in line_html:
+        if i[0] == '#':
+            b = 0
+            for a in i:
+                if a == '#':
+                    b += 1
+            if b > 0 and b <= 6:
+                text = f"<h{b}>{i[b:].strip()}</h{b}>"
+                # print(text)
+                html_lines.append(text)
+        else:
+            html_lines.append(i)
+
+    line_html_2 = []
+    m = 0
+    for line in html_lines:
+        if line[:2] == "**" or line[:2] == "((" or line[0].isalpha():
+            if m == 0:
+                m = 1
+                line_html_2.append('<p>')
+                line_html_2.append(line.strip())
+            else:
+                line_html_2.append(f'<br/>\n{line.strip()}')
+        else:
+            if m == 1:
+                m = 0
+                line_html_2.append("</p>")
+            if line[0] != '\n':
+                line_html_2.append(line)
+    if m == 1:
+        line_html_2.append("</p>")
+
+    line_html_4 = []
+    for i in line_html_2:
+        i = i.replace('**', '<b>', 1)
+        i = i.replace('**', '</b>', 1)
+        i = i.replace('__', '<em>', 1)
+        i = i.replace('__', '</em>', 1)
+        line_html_4.append(i)
+
+    line_html_5 = []
+
+    for i in line_html_4:
+        k = 0
+        if '[[' in i and ']]' in i:
+            start_index = i.find("[[") + 2
+            end_index = i.find("]]")
+            hash_content = i[start_index:end_index]
+            hashed_content = hashlib.md5(hash_content.encode()).hexdigest()
+
+            text = i[:i.find("[")] + hashed_content + i[i.find("]") + 2:]
+
+            # text = i[:i.find("[")] + hashed_content + i[i.find("]") + 2:]
+            # text = i[:i.find("[")] + hashlib.md5(i[i.find("[[")
+            # + 2: i.find("]]")
+            # ].encode()).hexdigest() + i[i.find("]") + 2:]
+
+            line_html_5.append(text.strip())
+            k = 1
+        if '((' in i and '))' in i:
+            cleaned = i.replace(
+                'c',
+                '').replace(
+                'C',
+                '').replace(
+                ')',
+                '').replace(
+                '(',
+                '')
+            line_html_5.append(cleaned.strip())
+            k = 1
+        if k == 0:
+            line_html_5.append(i)
+
+    with open(sys.argv[2], 'w') as f:
+        f.write("\n".join(line_html_5))
+
+    sys.exit(0)
+
 
 if __name__ == "__main__":
-    if len(sys.argv) < 3:
-        sys.stderr.write("Usage: ./markdown2html.py README.md README.html\n")
-        exit(1)
-    if not os.path.exists(sys.argv[1]):
-        sys.stderr.write("Missing " + sys.argv[1] + "\n")
-        exit(1)
-
-    with open(sys.argv[1]) as r:
-        with open(sys.argv[2], 'w') as w:
-            change_status = False
-            ordered_status = False
-            paragraph = False
-            for line in r:
-                line = line.replace('**', '<b>', 1)
-                line = line.replace('**', '</b>', 1)
-                line = line.replace('__', '<em>', 1)
-                line = line.replace('__', '</em>', 1)
-
-                md5 = re.findall(r'\[\[.+?\]\]', line)
-                md5_inside = re.findall(r'\[\[(.+?)\]\]', line)
-                if md5:
-                    line = line.replace(md5[0], hashlib.md5(
-                        md5_inside[0].encode()).hexdigest())
-
-                delete_c = re.findall(r'\(\(.+?\)\)', line)
-                remove_c_inside = re.findall(r'\(\((.+?)\)\)', line)
-                if delete_c:
-                    remove_c_inside = ''.join(
-                        c for c in remove_c_inside[0] if c not in 'Cc')
-                    line = line.replace(delete_c[0], remove_c_inside)
-
-                length = len(line)
-                headings = line.lstrip('#')
-                heading_count = length - len(headings)
-                unordered = line.lstrip('-')
-                unordered_count = length - len(unordered)
-                ordered = line.lstrip('*')
-                ordered_count = length - len(ordered)
-
-                if 1 <= heading_count <= 6:
-                    line = '<h{}>'.format(
-                        heading_count) + headings.strip() + '</h{}>\n'.format(
-                        heading_count)
-
-                if unordered_count:
-                    if not change_status:
-                        w.write('<ul>\n')
-                        change_status = True
-                    line = '<li>' + unordered.strip() + '</li>\n'
-                if change_status and not unordered_count:
-                    w.write('</ul>\n')
-                    change_status = False
-
-                if ordered_count:
-                    if not ordered_status:
-                        w.write('<ol>\n')
-                        ordered_status = True
-                    line = '<li>' + ordered.strip() + '</li>\n'
-                if ordered_status and not ordered_count:
-                    w.write('</ol>\n')
-                    ordered_status = False
-
-                if not (heading_count or change_status or ordered_status):
-                    if not paragraph and length > 1:
-                        w.write('<p>\n')
-                        paragraph = True
-                    elif length > 1:
-                        w.write('<br/>\n')
-                    elif paragraph:
-                        w.write('</p>\n')
-                        paragraph = False
-
-                if length > 1:
-                    w.write(line)
-
-            if ordered_status:
-                w.write('</ol>\n')
-            if paragraph:
-                w.write('</p>\n')
-
-    exit(0)
+    """
+    markdown2html module
+    """
+    main()
